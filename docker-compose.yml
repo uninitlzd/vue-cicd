@@ -1,0 +1,16 @@
+# docker-compose.yml
+version: '3'
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./src:/app/src
+    env_file:
+      - .env.local    # This will load all variables from .env.local
+    environment:
+      - VITE_APP_PASSPHRASE=${VITE_APP_PASSPHRASE}
+      - VITE_APP_SALT=${VITE_APP_SALT}
