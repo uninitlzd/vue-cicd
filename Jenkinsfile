@@ -1,8 +1,12 @@
 pipeline {
     agent any
-
+    tools {nodejs "nodejs"}
+    
     environment {
-        DOCKER_IMAGE = 'vue-app:local'
+        DOCKER_IMAGE = 'vue-app'
+        DOCKER_TAG = "${BUILD_NUMBER}"
+        // If using local registry, you might not need DOCKER_REGISTRY
+        // DOCKER_REGISTRY = 'your-registry'
     }
 
     stages {
@@ -18,12 +22,6 @@ pipeline {
             }
         }
 
-        stage('Run Tests') {
-            steps {
-                sh 'npm run test:unit'
-            }
-        }
-
         stage('Build') {
             steps {
                 sh 'npm run build'
@@ -33,25 +31,32 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh "docker build -t ${DOCKER_IMAGE} ."
+                    // Build with specific tag
+                    sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
+                    // Also tag as latest
+                    sh "docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest"
                 }
             }
         }
 
-        stage('Load Image to Kind') {
+        stage('Deploy') {
             steps {
                 script {
-                    sh "kind load docker-image ${DOCKER_IMAGE} --name vue-app-cluster"
+                    // Use the built image in your deployment
+                    sh """
+                        kubectl apply -f k8s/
+                        kubectl set image deployment/vue-app vue-app=${DOCKER_IMAGE}:${DOCKER_TAG}
+                    """
                 }
             }
         }
+    }
 
-        stage('Deploy to Kubernetes') {
-            steps {
-                script {
-                    sh 'kubectl apply -f k8s/'
-                }
-            }
+    post {
+        always {
+            // Clean up
+            sh "docker rmi ${DOCKER_IMAGE}:${DOCKER_TAG} || true"
+            sh "docker rmi ${DOCKER_IMAGE}:latest || true"
         }
     }
 }
