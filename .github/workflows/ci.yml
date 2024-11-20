@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
@@ -7,29 +7,39 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Setup Node.js
-      uses: actions/setup-node@v2
+      uses: actions/setup-node@v3
       with:
         node-version: '16'
+        cache: 'npm'
 
     - name: Install dependencies
-      run: npm install
-
-    - name: Run tests
-      run: npm run test:unit
-
+      run: npm ci
+      
     - name: Build
       run: npm run build
 
     - name: Build Docker image
       run: docker build -t vue-app:local .
 
-    - name: Load image into Kind cluster
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+
+    - name: Deploy to Kind
       run: |
         kind load docker-image vue-app:local --name vue-app-cluster
+        kubectl apply -f k8s/
